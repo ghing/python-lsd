@@ -20,6 +20,7 @@ def lsd(img, x, y):
             segs[7*i+1], 
             segs[7*i+2], 
             segs[7*i+3], 
+            segs[7*i+4], 
             segs[7*i+5],
             segs[7*i+6])
         lines.append(line)
