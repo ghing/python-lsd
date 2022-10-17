@@ -108,13 +108,14 @@
 
 #include "../include/knncpp.h"
 #include "../include/lsd.hpp"
+#include "../include/statistics.h"
 
-#include <opencv2/core.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-
-const int C_DIST_THRESH  = 10;
+#ifndef NDEBUG
+  #include <opencv2/core.hpp>
+  #include <opencv2/imgcodecs.hpp>
+  #include <opencv2/highgui/highgui.hpp>
+  #include <opencv2/imgproc.hpp>
+#endif
 
 /** ln(10) */
 #ifndef M_LN10
@@ -149,7 +150,7 @@ const int C_DIST_THRESH  = 10;
 /** Label for pixels already used in detection. */
 #define USED    1
 
-#ifdef DEBUG
+#ifndef NDEBUG
 static LineDrawer LD;
 #endif
 
@@ -2364,7 +2365,7 @@ void reduce_parallel(double (*lines)[4], int& n_out){
   free(merged);
 
 
-  #ifdef DEBUG
+  #ifndef NDEBUG
     LD.draw(lines, n_out, std::string("after red parallel"));
   #endif
 
@@ -2479,18 +2480,14 @@ lines_t* reduce_graph(double (*lines)[4], int& size){
   // split data into two chunks
   for(int i=0; i<size; ++i){
     if (cluster_id[i] == 0){
-      //lines_v[len_v] = lines[i];
       memcpy(lines_v[len_v], lines[i], sizeof(lines_v[len_v]));
       ++len_v;
     }else{
-      //lines_h[len_h] = lines[i];
       memcpy(lines_h[len_h], lines[i], sizeof(lines_h[len_h]));
       ++len_h;
     }
   }
   free(cluster_id);
-  //LD.draw(lines_h, len_h, std::string("horizontal"));
-  //LD.draw(lines_v, len_v, std::string("vert"));
 
   double (*reduced_v)[4]  = new double[len_v][4];
   double (*reduced_h)[4]  = new double[len_h][4];
@@ -2498,57 +2495,40 @@ lines_t* reduce_graph(double (*lines)[4], int& size){
   double* dist_v = calculate_pairwise_distances(lines_v, len_v);
   double* dist_h = calculate_pairwise_distances(lines_h, len_h);
 
-  #ifdef DEBUG
-    LD.draw(lines_v, len_v, std::string("Lines_V"));
-    LD.draw(lines_h, len_h, std::string("Lines_H"));
+ // #ifndef NDEBUG
+ //   LD.draw(lines_v, len_v, std::string("Lines_V"));
+ //   LD.draw(lines_h, len_h, std::string("Lines_H"));
+ // #endif
+
+  // determine distance threshhold by avg min dist
+  double thresh_v = calculate_distance_thresh(dist_v, len_v);
+  double thresh_h = calculate_distance_thresh(dist_h, len_h);
+  double thresh = std::min({thresh_v,thresh_h});
+  #ifndef NDEBUG
+  std::cout << "THRESH " << thresh << std::endl;
   #endif
 
-  len_v = reduce_lines(lines_v, len_v, dist_v, len_v, reduced_v);
-  len_h = reduce_lines(lines_h, len_h, dist_h, len_h, reduced_h);
+  len_v = reduce_lines(lines_v, len_v, dist_v, len_v, reduced_v, thresh);
+  len_h = reduce_lines(lines_h, len_h, dist_h, len_h, reduced_h, thresh);
 
-  #ifdef DEBUG
-    LD.draw(reduced_v, len_v, std::string("Reduced_V"));
-    LD.draw(reduced_h, len_h, std::string("Reduced_H"));
-  #endif
+//  #ifndef NDEBUG
+//    LD.draw(reduced_v, len_v, std::string("Reduced_V"));
+//    LD.draw(reduced_h, len_h, std::string("Reduced_H"));
+//  #endif
 
   free(dist_v);
   free(dist_h);
-  //free(lines_v);
-  //free(lines_h);
+  
   size = len_v+len_h;
   return new lines_t(reduced_v, reduced_h, len_v, len_h);
-
-  //for(int i=0; i<len_v;++i){
-  //  //out_reduced[i] = reduced_v[i];
-  //  memcpy(lines[i], reduced_v[i], 4*sizeof(double));
-  //  //out_reduced[i][0] = reduced_v[i][0];
-  //  //out_reduced[i][1] = reduced_v[i][1];
-  //  //out_reduced[i][2] = reduced_v[i][2];
-  //  //out_reduced[i][3] = reduced_v[i][3];
-  //}
-  //free(reduced_v);
-  //for(int i=0; i<len_h;++i){
-  //  memcpy(lines[i+len_v], reduced_h[i], 4*sizeof(double));
-  //  //out_reduced[(i+len_v)] = reduced_h[i];
-  //  //out_reduced[(i+len_v)][0] = reduced_h[i][0];
-  //  //out_reduced[(i+len_v)][1] = reduced_h[i][1];
-  //  //out_reduced[(i+len_v)][2] = reduced_h[i][2];
-  //  //out_reduced[(i+len_v)][3] = reduced_h[i][3];
-  //}
-  //free(reduced_h);
-
-  //LD.draw(lines, size, std::string(""));
 }
 
-int reduce_lines(double (*lines)[4], const int len, double * dist, const int size, double(*reduced)[4]){
+int reduce_lines(double (*lines)[4], const int len, double * dist, const int size, double(*reduced)[4], double thresh){
   std::vector<int> visited;
   std::vector<int> matched;
   std::vector<int> end_idx;
   std::vector<int> S;
   std::vector<int> edge_lines;
-  //double * reduced;
-  //std::vector<double> reduced;
-  //double (*reduced)[4] = new double[len][4];
 
   int group_id[len];
   for(int i=0; i<len; ++i){
@@ -2564,56 +2544,57 @@ int reduce_lines(double (*lines)[4], const int len, double * dist, const int siz
     if (group_id[cur] == -1){
       visited.push_back(cur);
       S.push_back(cur);
-      stack_grows=true;
-      #ifdef DEBUG
-          LD.draw(lines[cur], std::string(""), cv::Scalar(255,0,0));
-      #endif
-      while(S.size() > 0){
+      //#ifndef NDEBUG
+      //    LD.draw(lines[cur], std::string(""), cv::Scalar(255,0,0));
+      //#endif
+      while(true){
         group_id[cur] = id;
-        int next_node = __next_node(cur, dist, size, visited);
+        int next_node = __next_node(cur, dist, size, visited, thresh);
 
         if (next_node != -1){
-          #ifdef DEBUG
-              LD.draw(lines[next_node], std::string(""));
-          #endif
+          //#ifndef NDEBUG
+          //    LD.draw(lines[next_node], std::string(""));
+          //#endif
           matched.push_back(cur);
           visited.push_back(next_node);
-          if (__next_node(next_node, dist, size, visited)!= -1)
+          if (__next_node(next_node, dist, size, visited, thresh)!= -1)
             S.push_back(next_node);
           cur = next_node;
         }else{
-          if (stack_grows && !is_in(matched, cur)){
+          // we reached the end 
+          if (!is_in(matched, cur)){
             edge_lines.push_back(cur);
-            stack_grows = false;
-          }
-          end_idx.push_back(cur);
-          if (S.size() > 0){
-            cur = S.back();
-            S.pop_back();
-          }
-          if (S.size() == 1){
-            stack_grows = true;
-          }
-          if (! is_in(end_idx, cur)){
+            if (edge_lines.size() == 2){
+              S.clear();
+              break;
+            }
+            // unroll stack
+            cur = S.front();
+            S.clear();
             S.push_back(cur);
+          }else{
+            S.clear();
+            break;
           }
         } // if(next_node)
       } // while
     } // group_id[cur] != -1
     if (edge_lines.size() == 0){
+      edge_lines.clear();
       continue;
     }
     if (edge_lines.size() == 1){
       edge_lines.push_back(cur); // we randomly selected the start node 
     }
+
     
     merge_lines_max_dist(lines[edge_lines.front()], 
                          lines[edge_lines.back()],
                          reduced[id]);
     
-    #ifdef DEBUG
-      LD.draw(reduced[id], std::string(""));
-    #endif
+    //#ifndef NDEBUG
+    //  LD.draw(reduced[id], std::string(""));
+    //#endif
 
     edge_lines.clear();
     visited = matched;
@@ -2665,11 +2646,12 @@ bool is_in(std::vector<int> & visited, const int val){
 int __next_node(const int cur_idx, 
                 double * dist, 
                 const int size,
-                std::vector<int> & visited){
+                std::vector<int> & visited,
+                double THRESH){
   int next_idx = -1;
   while(true){
     next_idx = argmin((const double*) dist, cur_idx, size);
-    if (dist[cur_idx*size+next_idx] > C_DIST_THRESH){
+    if (dist[cur_idx*size+next_idx] > THRESH){
       visited.push_back(next_idx);
       return -1;
     }
@@ -2733,7 +2715,7 @@ void merge_lines_max_dist(const double (&l1)[4],  const double (&l2)[4], double 
 lines_t* lsd_with_line_merge(double * img, int X, int Y){
   int* n_out = new int({0});
 
-  #ifdef DEBUG
+  #ifndef NDEBUG
     LD.setImg(img, Y, X);
   #endif
 
@@ -2748,7 +2730,7 @@ lines_t* lsd_with_line_merge(double * img, int X, int Y){
     lines[i][3] = out[i*7+3];
   }
 
-  #ifdef DEBUG
+  #ifndef NDEBUG
     LD.draw(lines, *n_out, std::string("after lsd"));
   #endif
 
@@ -2762,5 +2744,28 @@ lines_t* lsd_with_line_merge(double * img, int X, int Y){
 
 void free_memory(void* ptr){
   free(ptr);
+}
+
+double calculate_distance_thresh(const double* dist, const int size){
+  double min_ [size];
+  for(int i=0;i<size;++i){
+    min_[i] = std::numeric_limits<double>::max();
+  }
+
+  for(int i=0; i<size;++i){
+    for(int j=0; j<size;++j){
+      if (dist[i*size+j] < min_[i]){
+        min_[i] = dist[i*size+j];
+      }
+    }
+  }
+  double med = sstats::median(min_, size);
+  //double std = sstats::std(min_, size);
+  #ifndef NDEBUG
+    std::cout << "MED: " << med <<std::endl;//<< "STD: " << std << std::endl;
+  #endif
+  double ret = 1.5*med;//+std; 
+
+  return ret;
 }
 

@@ -45,7 +45,6 @@ def lsd(img, x, y):
 
 def lsd_with_line_merge(img, x, y):
     img_pix = (CT.c_double * len(img))(*img)
-
     segs = liblsd.lsd_with_line_merge(img_pix,
                                      CT.c_int(x),
                                      CT.c_int(y))

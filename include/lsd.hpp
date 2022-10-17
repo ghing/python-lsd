@@ -38,8 +38,7 @@
 #include <vector>
 
 
-#define DEBUG 
-#ifdef DEBUG
+#ifndef NDEBUG
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -349,7 +348,6 @@ struct lines_t{
   int len_h;
 };
 
-
 #ifdef __cplusplus
 extern "C"{
 #endif
@@ -369,26 +367,30 @@ int reduce_lines(double (*lines)[4],
                   const int len, 
                   double * dist, 
                   const int size,
-                  double (*lines_reduced)[4]);
+                  double (*lines_reduced)[4],
+                  double thresh);
 
 
 lines_t* reduce_graph(double (*lines)[4], int& size);
 void reduce_parallel(double (*lines)[4], int& size);
 
 int argmin(const double* dist, const int row, const int size);
+
+
 int argmax(const double* dist, const int row, const int size);
 bool is_in(std::vector<int> & visited, const int val);
 
 int __next_node(const int cur_idx, 
                 double * dist, 
                 const int size,
-                std::vector<int> & visited);
+                std::vector<int> & visited,
+                double thresh);
 
 void merge_lines_max_dist(const double (&l1)[4], const double (&l2)[4], double (&out)[4]);
 int* cluster_angles(double* angles, const int size);
 double *merge_lines_parallel(const double (*lines)[4], const int idx_a, const int idx_b);
 
-
+double calculate_distance_thresh(const double* dist, const int size);
 
 #endif /* !LSD_HEADER */
 /*----------------------------------------------------------------------------*/

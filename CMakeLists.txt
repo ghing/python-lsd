@@ -12,6 +12,10 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_LIST_DIR}/cmake)
 #set(CMAKE_CXX_FLAGS "-w")
 set(CMAKE_CXX_FLAGS "-Wno-write-strings")
 
+if (CMAKE_BUILD_TYPE EQUAL "DEBUG")
+  set(CMAKE_CXX_FLAGS "-D DEBUG")
+endif()
+
 
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 find_package (OpenCV REQUIRED)
@@ -20,6 +24,8 @@ find_package (OpenCV REQUIRED)
 set(SOURCES 
    src/lsd.cpp 
    src/kmeans.c
+   src/statistics.cpp
+   include/statistics.h
    include/kmeans.h
    include/knncpp.h 
    include/lsd.hpp)
