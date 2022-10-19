@@ -512,7 +512,8 @@ static image_double new_image_double(unsigned int xsize, unsigned int ysize)
   image_double image;
 
   /* check parameters */
-  if( xsize == 0 || ysize == 0 ) error("new_image_double: invalid image size.");
+  std::string err_msg = std::string("new_image_double: invalid image size." + std::to_string(xsize) + " " + std::to_string(ysize));
+  if( xsize == 0 || ysize == 0 ) error((char *)err_msg.c_str());
 
   /* get memory */
   image = (image_double) malloc( sizeof(struct image_double_s) );
@@ -2713,6 +2714,11 @@ void merge_lines_max_dist(const double (&l1)[4],  const double (&l2)[4], double 
 }
 
 lines_t* lsd_with_line_merge(double * img, int X, int Y){
+  if (X == 0 || Y == 0){
+    return new lines_t(nullptr, 
+                       nullptr,
+                       0, 0);
+  }
   int* n_out = new int({0});
 
   #ifndef NDEBUG
@@ -2733,7 +2739,11 @@ lines_t* lsd_with_line_merge(double * img, int X, int Y){
   #ifndef NDEBUG
     LD.draw(lines, *n_out, std::string("after lsd"));
   #endif
-
+  if (*n_out == 0){
+    return new lines_t(nullptr, 
+                       nullptr,
+                       0, 0);
+  }
   reduce_parallel(lines, *n_out);
 
   lines_t* line_struct = reduce_graph(lines, *n_out);

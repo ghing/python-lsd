@@ -3,6 +3,7 @@ import ctypes as CT
 import os.path
 import numpy as np
 import pdb
+import cv2
 # Find and load the library
 
 libpath = os.path.join(os.path.dirname(__file__), 'liblsd.so')
